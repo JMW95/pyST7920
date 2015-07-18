@@ -16,17 +16,23 @@ class ST7920:
 		self.send(0,0,0x34)
 		self.send(0,0,0x36) #enable graphics display
 		
-		self.width = 128
-		self.height = 64
+		self.set_rotation(0) # rotate to 0 degrees
 		
-		self.fbuff = [[0]*(self.width/8) for i in range(self.height)]
-		
-		self.fontsheet = self.loadfontsheet("fontsheet.png", 6, 8)
+		self.fontsheet = self.load_font_sheet("fontsheet.png", 6, 8)
 		
 		self.clear()
 		self.redraw()
 	
-	def loadfontsheet(self, filename, cw, ch):
+	def set_rotation(self, rot):
+		if rot==0 or rot==2:
+			self.width = 128
+			self.height = 64
+		elif rot==1 or rot==3:
+			self.width = 64
+			self.height = 128
+		self.rot = rot
+	
+	def load_font_sheet(self, filename, cw, ch):
 		img = png.Reader(filename).read()
 		rows = list(img[2])
 		height = len(rows)
@@ -52,7 +58,7 @@ class ST7920:
 		return self.spi.xfer2([b1] + bytes)
 	
 	def clear(self):
-		self.fbuff = [[0]*(self.width/8) for i in range(self.height)]
+		self.fbuff = [[0]*(128/8) for i in range(64)]
 	
 	def line(self, x1, y1, x2, y2, set=True):
 		diffX = abs(x2-x1)
@@ -74,7 +80,7 @@ class ST7920:
 				err += diffX
 				y1 += shiftY
 	
-	def fillrect(self, x1, y1, x2, y2, set=True):
+	def fill_rect(self, x1, y1, x2, y2, set=True):
 		for y in range(y1,y2+1):
 			self.line(x1,y,x2,y, set)
 	
@@ -88,9 +94,23 @@ class ST7920:
 		if x<0 or x>=self.width or y<0 or y>=self.height:
 			return
 		if set:
-			self.fbuff[y][x/8] |= 1 << (7-(x%8))
+			if self.rot==0:
+				self.fbuff[y][x/8] |= 1 << (7-(x%8))
+			elif self.rot==1:
+				self.fbuff[x][15 - (y/8)] |= 1 << (y%8)
+			elif self.rot==2:
+				self.fbuff[63 - y][15-(x/8)] |= 1 << (x%8)
+			elif self.rot==3:
+				self.fbuff[63 - x][y/8] |= 1 << (7-(y%8))
 		else:
-			self.fbuff[y][x/8] &= ~(1 << (7-(x%8)))
+			if self.rot==0:
+				self.fbuff[y][x/8] &= ~(1 << (7-(x%8)))
+			elif self.rot==1:
+				self.fbuff[x][15 - (y/8)] &= ~(1 << (y%8))
+			elif self.rot==2:
+				self.fbuff[63 - y][15-(x/8)] &= ~(1 << (x%8))
+			elif self.rot==3:
+				self.fbuff[63 - x][y/8] &= ~(1 << (7-(y%8)))
 	
 	def put_text(self, s, x, y):
 		for c in s:
