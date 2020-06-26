@@ -129,18 +129,20 @@ class ST7920:
 			except KeyError:
 				pass
 			x += cw
-	
+
+	def _send_line(self, row, dx1, dx2):
+		self.send(0,0,[0x80 + row%32, 0x80 + ((dx1//16) + (8 if row>=32 else 0))]) # set address
+		self.send(1,0,self.fbuff[row][dx1//8:(dx2//8)+1])
+
 	def redraw(self, dx1=0, dy1=0, dx2=127, dy2=63, full=False):
 		if full or self.currentlydisplayedfbuff == None:
-			for i in range(dy1, dy2+1):
-				self.send(0,0,[0x80 + i%32, 0x80 + ((dx1//16) + (8 if i>=32 else 0))]) # set address
-				self.send(1,0,self.fbuff[i][dx1//8:(dx2//8)+1])
+			for row in range(dy1, dy2+1):
+				self._send_line(row, dx1, dx2)
 		else:
 			lines = []
-			for i in range(len(self.fbuff)):
-				if self.currentlydisplayedfbuff[i] != self.fbuff[i]:
-					self.send(0,0,[0x80 + i%32, 0x80 + ((dx1//16) + (8 if i>=32 else 0))]) # set address
-					self.send(1,0,self.fbuff[i][dx1//8:(dx2//8)+1])
+			for row in range(len(self.fbuff)):
+				if self.currentlydisplayedfbuff[row] != self.fbuff[row]:
+					self._send_line(row, dx1, dx2)
 		self.currentlydisplayedfbuff = deepcopy(self.fbuff)
 
 
