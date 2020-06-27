@@ -137,12 +137,12 @@ class ST7920:
 	def redraw(self, dx1=0, dy1=0, dx2=127, dy2=63, full=False):
 		if self.currentlydisplayedfbuff == None: # first redraw always affects the complete LCD
 			for row in range(0, 64):
-				self._send_line(row, dx1, dx2)
+				self._send_line(row, 0, 127)
 			self.currentlydisplayedfbuff = deepcopy(self.fbuff) # currentlydisplayedfbuff is initialized here
 		else: # redraw has been called before, since currentlydisplayedfbuff is already initialized
-			for row in range(len(self.fbuff)):
+			for row in range(dy1, dy2+1):
 				if full or (self.currentlydisplayedfbuff[row] != self.fbuff[row]): # redraw row if full=True or changes are detected
 					self._send_line(row, dx1, dx2)
-					self.currentlydisplayedfbuff[row] = deepcopy(self.fbuff[row])
+					self.currentlydisplayedfbuff[row][dx1//8:(dx2//8)+1] = self.fbuff[row][dx1//8:(dx2//8)+1]
 
 
