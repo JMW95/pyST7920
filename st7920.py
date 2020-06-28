@@ -1,5 +1,6 @@
 import spidev
 import png
+from copy import deepcopy
 
 class ST7920:
 	def __init__(self):
@@ -21,6 +22,7 @@ class ST7920:
 		self.fontsheet = self.load_font_sheet("fontsheet.png", 6, 8)
 		
 		self.clear()
+		self.currentlydisplayedfbuff = None
 		self.redraw()
 	
 	def set_rotation(self, rot):
@@ -38,8 +40,8 @@ class ST7920:
 		height = len(rows)
 		width = len(rows[0])
 		sheet = []
-		for y in range(height/ch):
-			for x in range(width/cw):
+		for y in range(height//ch):
+			for x in range(width//cw):
 				char = []
 				for sy in range(ch):
 					row = rows[(y*ch)+sy]
@@ -58,7 +60,7 @@ class ST7920:
 		return self.spi.xfer2([b1] + bytes)
 	
 	def clear(self):
-		self.fbuff = [[0]*(128/8) for i in range(64)]
+		self.fbuff = [[0]*(128//8) for i in range(64)]
 	
 	def line(self, x1, y1, x2, y2, set=True):
 		diffX = abs(x2-x1)
@@ -95,22 +97,22 @@ class ST7920:
 			return
 		if set:
 			if self.rot==0:
-				self.fbuff[y][x/8] |= 1 << (7-(x%8))
+				self.fbuff[y][x//8] |= 1 << (7-(x%8))
 			elif self.rot==1:
-				self.fbuff[x][15 - (y/8)] |= 1 << (y%8)
+				self.fbuff[x][15 - (y//8)] |= 1 << (y%8)
 			elif self.rot==2:
-				self.fbuff[63 - y][15-(x/8)] |= 1 << (x%8)
+				self.fbuff[63 - y][15-(x//8)] |= 1 << (x%8)
 			elif self.rot==3:
-				self.fbuff[63 - x][y/8] |= 1 << (7-(y%8))
+				self.fbuff[63 - x][y//8] |= 1 << (7-(y%8))
 		else:
 			if self.rot==0:
-				self.fbuff[y][x/8] &= ~(1 << (7-(x%8)))
+				self.fbuff[y][x//8] &= ~(1 << (7-(x%8)))
 			elif self.rot==1:
-				self.fbuff[x][15 - (y/8)] &= ~(1 << (y%8))
+				self.fbuff[x][15 - (y//8)] &= ~(1 << (y%8))
 			elif self.rot==2:
-				self.fbuff[63 - y][15-(x/8)] &= ~(1 << (x%8))
+				self.fbuff[63 - y][15-(x//8)] &= ~(1 << (x%8))
 			elif self.rot==3:
-				self.fbuff[63 - x][y/8] &= ~(1 << (7-(y%8)))
+				self.fbuff[63 - x][y//8] &= ~(1 << (7-(y%8)))
 	
 	def put_text(self, s, x, y):
 		for c in s:
@@ -127,8 +129,20 @@ class ST7920:
 			except KeyError:
 				pass
 			x += cw
-	
-	def redraw(self, dx1=0, dy1=0, dx2=127, dy2=63):
-		for i in range(dy1, dy2+1):
-			self.send(0,0,[0x80 + i%32, 0x80 + ((dx1/16) + (8 if i>=32 else 0))]) # set address
-			self.send(1,0,self.fbuff[i][dx1/8:(dx2/8)+1])
+
+	def _send_line(self, row, dx1, dx2):
+		self.send(0,0,[0x80 + row%32, 0x80 + ((dx1//16) + (8 if row>=32 else 0))]) # set address
+		self.send(1,0,self.fbuff[row][dx1//8:(dx2//8)+1])
+
+	def redraw(self, dx1=0, dy1=0, dx2=127, dy2=63, full=False):
+		if self.currentlydisplayedfbuff == None: # first redraw always affects the complete LCD
+			for row in range(0, 64):
+				self._send_line(row, 0, 127)
+			self.currentlydisplayedfbuff = deepcopy(self.fbuff) # currentlydisplayedfbuff is initialized here
+		else: # redraw has been called before, since currentlydisplayedfbuff is already initialized
+			for row in range(dy1, dy2+1):
+				if full or (self.currentlydisplayedfbuff[row] != self.fbuff[row]): # redraw row if full=True or changes are detected
+					self._send_line(row, dx1, dx2)
+					self.currentlydisplayedfbuff[row][dx1//8:(dx2//8)+1] = self.fbuff[row][dx1//8:(dx2//8)+1]
+
+
